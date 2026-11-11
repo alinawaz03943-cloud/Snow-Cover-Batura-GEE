@@ -1,0 +1,72 @@
+
+
+Map.centerObject (table);
+
+var time_start = '2014-01-01', time_end = '2014-12-31'
+
+var modis = imageCollection.select('NDSI_Snow_Cover')
+.filterDate(time_start, time_end);
+
+
+
+var lc = imageCollection2.select ('LC_Type1'). mode()
+var wb = lc.eq(17).not();
+
+Map.addLayer(wb.clip(table),[],'water_body', false)
+
+var ndsi_max =modis.max().updateMask(wb);
+
+Map.addLayer(ndsi_max.clip(table),[],'ndsi_2024', false)
+
+var thr = ndsi_max.gt(75);
+
+Map.addLayer(thr.clip(table),[],'thr70',false)
+
+var mask = thr.updateMask (thr);
+
+Map.addLayer(mask.clip(table),[],'mask70',false)
+
+var areaImage = mask.multiply(ee.Image.pixelArea().divide(1e6));
+
+Map.addLayer(areaImage.clip(table),[],'area',false);
+
+var snow_area = areaImage.reduceRegion({
+  reducer: ee.Reducer.sum(),
+  geometry: table,
+  scale: 500,   // MODIS resolution
+  maxPixels: 1e13
+});
+print('snow cover area km2', snow_area)
+
+var ndsi = modis.map(function(img){
+  var ndsi_thr = img.gt(20);
+  var ndsi_mask = ndsi_thr.updateMask(ndsi_thr);
+  var ndsi_area = ndsi_mask.multiply(ee.Image.pixelArea().divide(1e6));
+  return ndsi_area
+  .copyProperties(img, img.propertyNames())
+  });
+  
+  print(
+    ui.Chart.image.series(ndsi, table, ee.Reducer.sum(),
+    500, 'system:time_start')
+    )
+    
+  Export.image.toDrive({
+      image: ndsi.filterDate('2004-01-31','2004-12-31')
+      .filter(ee.Filter.calendarRange(1,1,'year')).toBands().clip(table),
+      description: 'modis_ndsi',
+      scale: 500,
+      region: table,
+      crs: 'EPSG: 4326'
+      });
+    
+
+
+
+
+
+
+
+
+
+
